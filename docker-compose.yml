@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # API Backend com Claude Code SDK
   api:
     build:
       context: ./api
@@ -9,12 +10,24 @@ services:
     ports:
       - "${API_PORT:-8002}:8002"
     environment:
+      # Python
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Claude Code Bypass Permissions
+      - CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=true
+      - CLAUDE_AUTO_APPROVE=true
+      - CLAUDE_TRUST_ALL_DIRECTORIES=true
+      - CLAUDE_AUTO_APPROVE_MCP=true
+      - CLAUDE_BYPASS_PERMISSIONS=true
+      
+      # API Config
+      - MAX_SESSION_TIME=${MAX_SESSION_TIME:-3600}
+      - MAX_SESSIONS_PER_IP=${MAX_SESSIONS_PER_IP:-10}
     volumes:
-      # Monta o diretório do Claude para acesso ao SDK real
-      - ~/.claude:/home/.claude:ro
-      # Volume para logs
+      # Claude config - removendo read-only para permitir escrita
+      - ~/.claude:/home/appuser/.claude
+      # Logs persistentes
       - ./logs/api:/app/logs
     networks:
       - claude-network
@@ -25,7 +38,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
 
+  # Frontend Next.js
   frontend:
     build:
       context: ./chat
@@ -34,7 +51,7 @@ services:
     ports:
       - "${FRONTEND_PORT:-3020}:3020"
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:8002
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8002}
       - NODE_ENV=production
     depends_on:
       api:
@@ -42,30 +59,56 @@ services:
     networks:
       - claude-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3020/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  # Nginx reverso proxy opcional para produção
-  nginx:
-    image: nginx:alpine
-    container_name: cc-sdk-nginx
+  # Redis para cache e sessões
+  redis:
+    image: redis:7-alpine
+    container_name: claude-redis
     ports:
-      - "${NGINX_PORT:-80}:80"
-      - "${NGINX_SSL_PORT:-443}:443"
+      - "127.0.0.1:6379:6379"  # Apenas localhost
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - api
-      - frontend
+      - redis-data:/data
     networks:
       - claude-network
     restart: unless-stopped
-    profiles:
-      - production
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # Nginx (opcional - descomente se quiser usar)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: cc-sdk-nginx
+  #   ports:
+  #     - "${NGINX_PORT:-80}:80"
+  #     - "${NGINX_SSL_PORT:-443}:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - api
+  #     - frontend
+  #   networks:
+  #     - claude-network
+  #   restart: unless-stopped
+  #   profiles:
+  #     - production
 
 networks:
   claude-network:
     driver: bridge
 
 volumes:
+  redis-data:
+    driver: local
   logs:
     driver: local

@@ -13,6 +13,11 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - MAX_SESSION_TIME=${MAX_SESSION_TIME:-3600}
       - MAX_SESSIONS_PER_IP=${MAX_SESSIONS_PER_IP:-10}
+      - CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=true
+      - CLAUDE_AUTO_APPROVE=true
+      - CLAUDE_TRUST_ALL_DIRECTORIES=true
+      - CLAUDE_AUTO_APPROVE_MCP=true
+      - CLAUDE_BYPASS_PERMISSIONS=true
     volumes:
       - ~/.claude:/home/.claude:ro
       - ./logs/api:/app/logs

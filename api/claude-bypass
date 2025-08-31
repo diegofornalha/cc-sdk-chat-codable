@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Claude Bypass para Docker - Funciona com usuário não-root (appuser)
+
+# Configurar todas as variáveis de ambiente
+export CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=true
+export CLAUDE_AUTO_APPROVE_MCP=true
+export CLAUDE_TRUST_ALL_DIRECTORIES=true
+export CLAUDE_DISABLE_TELEMETRY=1
+export CLAUDE_BYPASS_PERMISSIONS=true
+export CLAUDE_NO_PROMPT=true
+export CLAUDE_AUTO_APPROVE=true
+
+# Para usuário não-root (appuser), SEMPRE usar a flag
+exec claude --dangerously-skip-permissions "$@"
