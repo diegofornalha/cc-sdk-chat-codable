@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: cc-sdk-api
+    ports:
+      - "127.0.0.1:8002:8002"  # Apenas localhost
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_SESSION_TIME=${MAX_SESSION_TIME:-3600}
+      - MAX_SESSIONS_PER_IP=${MAX_SESSIONS_PER_IP:-10}
+    volumes:
+      - ~/.claude:/home/.claude:ro
+      - ./logs/api:/app/logs
+    networks:
+      - claude-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./chat
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://chat.agentesintegrados.com/api
+    container_name: cc-sdk-frontend
+    ports:
+      - "127.0.0.1:3020:3020"  # Apenas localhost
+    environment:
+      - NEXT_PUBLIC_API_URL=https://chat.agentesintegrados.com/api
+      - NODE_ENV=production
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - claude-network
+    restart: always
+
+networks:
+  claude-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
